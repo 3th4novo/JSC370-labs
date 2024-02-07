@@ -131,12 +131,25 @@ stations[, n := 1:.N, by = .(USAF)]
 stations <- stations[n == 1,][, n := NULL]
 
 # Read in the met data and fix lat, lon, temp
+met$lat <- met$lat/1000
+met$lon <- met$lon/1000
+met$wind.sp <- met$wind.sp/10
+met$temp <- met$temp/10
+met$dew.point <- met$dew.point/10
+met$atm.press <- met$atm.press/10
+
+# Relative Humidity
+met$rh <- 100*((112-0.1*met$temp+met$dew.point)/(112+0.9*met$temp))^8
 ```
 
 3. Merge the data as we did during the lecture. Use the `merge()` code and you can also try the tidy way with `left_join()`
 
 ```{r}
+joint_df <- left_join(met, stations, by = join_by(USAFID == USAF))
+```
 
+```{r}
+head(joint_df)
 ```
 
 ## Question 1: Identifying Representative Stations
@@ -144,7 +157,9 @@ stations <- stations[n == 1,][, n := NULL]
 Across all weather stations, which stations have the median values of temperature, wind speed, and atmospheric pressure? Using the `quantile()` function, identify these three stations. Do they coincide?
 
 ```{r}
-
+quantile(joint_df$temp, na.rm = TRUE)
+quantile(joint_df$wind.sp, na.rm = TRUE)
+quantile(joint_df$atm.press, na.rm = TRUE)
 ```
 
 Next identify the stations have these median values.
