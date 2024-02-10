@@ -5,6 +5,7 @@ output:
   tufte::tufte_html:
     css: style.css
 link-citations: yes
+always_allow_html: true
 ---
 
 # Learning goals
@@ -90,7 +91,7 @@ Once you are done setting up the project, you can now start working with the MET
 
 1. Load the `data.table` (and the `dtplyr` and `dplyr` packages), `mgcv`, `ggplot2`, `leaflet`, `kableExtra`.
 
-```{r packages warnings=FALSE}
+```{r, include=FALSE}
 library(data.table)
 library(dtplyr)
 library(dplyr)
@@ -101,7 +102,7 @@ library(kableExtra)
 ```
 
 
-```{r, eval=FALSE}
+```{r}
 fn <- "https://raw.githubusercontent.com/JSC370/JSC370-2024/main/data/met_all_2023.gz"
 if (!file.exists("met_all_2023.gz"))
   download.file(fn, destfile = "met_all_2023.gz")
@@ -110,7 +111,7 @@ met <- data.table::fread("met_all_2023.gz")
 
 2. Load the met data from https://github.com/JSC370/JSC370-2024/main/data/met_all_2023.gz or  (Use https://raw.githubusercontent.com/JSC370/JSC370-2024/main/data/met_all_2023.gz to download programmatically), and also the station data. For the latter, you can use the code we used during lecture to pre-process the stations data:
 
-```{r stations-data, eval = FALSE}
+```{r stations-data}
 # Download the data
 stations <- fread("ftp://ftp.ncdc.noaa.gov/pub/data/noaa/isd-history.csv")
 stations[, USAF := as.integer(USAF)]
@@ -140,12 +141,20 @@ met$atm.press <- met$atm.press/10
 
 # Relative Humidity
 met$rh <- 100*((112-0.1*met$temp+met$dew.point)/(112+0.9*met$temp))^8
+
+median_by_station <- met %>%
+  group_by(USAFID) %>%
+  summarise(
+    median_temp = median(temp, na.rm = TRUE),
+    median_wind.sp = median(wind.sp, na.rm = TRUE),
+    median_atm.press = median(atm.press, na.rm = TRUE)
+  )
 ```
 
 3. Merge the data as we did during the lecture. Use the `merge()` code and you can also try the tidy way with `left_join()`
 
 ```{r}
-joint_df <- left_join(met, stations, by = join_by(USAFID == USAF))
+joint_df <- left_join(stations, median_by_station, by = join_by(USAF == USAFID))
 ```
 
 ```{r}
@@ -157,16 +166,29 @@ head(joint_df)
 Across all weather stations, which stations have the median values of temperature, wind speed, and atmospheric pressure? Using the `quantile()` function, identify these three stations. Do they coincide?
 
 ```{r}
-quantile(joint_df$temp, na.rm = TRUE)
-quantile(joint_df$wind.sp, na.rm = TRUE)
-quantile(joint_df$atm.press, na.rm = TRUE)
+quantile(joint_df$median_temp, na.rm = TRUE)
+quantile(joint_df$median_wind.sp, na.rm = TRUE)
+quantile(joint_df$median_atm.press, na.rm = TRUE)
 ```
 
 Next identify the stations have these median values.
 
-```{r}
 
+
+```{r}
+station_med <- met[, .(
+  temp_50 = quantile(met$temp, probs = 0.5, na.rm = TRUE),
+  wind.sp_50 = quantile(met$wind.sp, probs = 0.5, na.rm = TRUE),
+  atm.press_50 = quantile(met$atm.press, probs = 0.5, na.rm = TRUE)
+)]
 ```
+
+```{r}
+joint_df %>% 
+  filter((joint_df$median_temp - station_med$temp_50 == 0) & (joint_df$median_wind.sp - station_med$wind.sp_50 == 0) & (joint_df$median_atm.press - station_med$atm.press_50 == 0))
+```
+
+
 
 Knit the document, commit your changes, and save it on GitHub. Don't forget to add `README.md` to the tree, the first time you render it.
 
@@ -175,8 +197,27 @@ Knit the document, commit your changes, and save it on GitHub. Don't forget to a
 Now let's find the weather stations by state with closest temperature and wind speed based on the euclidean distance from these medians. 
 
 ```{r}
+state_med <- joint_df %>% 
+  group_by(STATE) %>% 
+  summarise(state_temp_med = median(median_temp, na.rm = TRUE),
+            state_ws_med = median(median_wind.sp, na.rm = TRUE))
+```
+
+```{r}
+joint_1 <- left_join(joint_df, state_med, by = join_by(STATE == STATE))
+```
+
+```{r}
+joint_1 <- joint_1 %>% 
+  mutate(euclidean_distance = sqrt((median_temp - state_temp_med)^2 + (median_wind.sp - state_ws_med)^2), by = STATE)
 
 ```
+
+```{r}
+representative_stations <- joint_1[, .SD[which.min(euclidean_distance)], by = STATE]
+representative_stations
+```
+
 
 Knit the doc and save it on GitHub.
 
@@ -185,8 +226,30 @@ Knit the doc and save it on GitHub.
 For each state, identify which station is closest to the geographic mid-point (median) of the state. Combining these with the stations you identified in the previous question, use `leaflet()` to visualize all ~100 points in the same figure, applying different colors for the geographic median and the temperature and wind speed median.
 
 ```{r}
-
+geographic_midpoint <- joint_1[, .(median_lat = median(LAT, na.rm = TRUE), 
+                               median_lon = median(LON, na.rm = TRUE)), by = .(STATE)]
 ```
+
+```{r}
+joint_2 <- merge(joint_df, geographic_midpoint, by = "STATE")
+```
+
+```{r}
+joint_2[, distance_to_midpoint := sqrt((LAT - median_lat)^2 + (LON - median_lon)^2), by = STATE]
+```
+
+```{r}
+closest_stations_geo <- joint_2[, .SD[which.min(distance_to_midpoint)], by = STATE]
+closest_stations_geo
+```
+
+```{r}
+
+leaflet(data = geographic_midpoint) %>%
+  addProviderTiles('CartoDB.Positron') %>% 
+  addCircleMarkers(~median_lat, ~median_lon)
+```
+
 
 Knit the doc and save it on GitHub.
 
@@ -201,7 +264,16 @@ Use the following breakdown for elevation:
 - High: elev >= 401
 
 ```{r}
+joint_df4 <- left_join(met, stations, by = join_by(USAFID == USAF))
+joint_df4 <- joint_df4 %>% mutate(elev_cat = case_when(
+  elev < 93 ~ "low",
+  elev >= 93 & elev < 401 ~ "mid",
+  elev >= 401 ~ "high")
+)
 
+joint_df4 %>% 
+  group_by(STATE, elev_cat) %>% 
+  summarise(temp_mean = mean(temp, na.rm = TRUE), .groups = "drop")
 ```
 
 
@@ -217,8 +289,29 @@ Let's practice running regression models with smooth functions on X. We need the
 - fit both a linear model and a spline model (use `gam()` with a cubic regression spline on wind speed). Summarize and plot the results from the models and interpret which model is the best fit and why.
 
 ```{r}
+filtered_data <- median_by_station %>%
+  filter(median_atm.press >= 1000 & median_atm.press <= 1020)
 
+ggplot(filtered_data, aes(x = median_atm.press, y = median_temp)) +
+  geom_point() + 
+  geom_smooth(method = "lm", color = "blue", se = FALSE) + 
+  geom_smooth(method = "gam", formula = y ~ s(x), color = "red", se = FALSE) +
+  theme_minimal() +
+  labs(title = "Temperature vs. Atmospheric Pressure",
+       x = "Atmospheric Pressure",
+       y = "Temperature")
 ```
+
+```{r}
+linear_model <- lm(median_temp ~ median_atm.press, data = filtered_data)
+
+spline_model <- gam(median_temp ~ s(median_wind.sp), data = filtered_data)
+
+summary(linear_model)
+summary(spline_model)
+```
+
+We can see from the graph that GAM captures the non-linear feature of the data. I think the spline model is a better fit because there isn't a clear linear relationship between the points.
 
 ## Deliverables
 
