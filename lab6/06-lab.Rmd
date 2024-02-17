@@ -195,24 +195,40 @@ Now, extract the abstract and article title for each one of the elements of
 take advantage of vectorization of `stringr::str_extract`
 
 ```{r extracting-last-bit, eval = FALSE}
-abstracts <- str_extract(pub_char_list, "[YOUR REGULAR EXPRESSION]")
-abstracts <- str_remove_all(abstracts, "[CLEAN ALL THE HTML TAGS]")
-abstracts <- str_remove_all(abstracts, "[CLEAN ALL EXTRA WHITE SPACE AND NEW LINES]")
+abstracts <- str_extract(pub_char_list, "<Abstract>[\\s\\S]*?</Abstract>")
+abstracts <- str_replace_all(abstracts, "<.*?>", "")
+abstracts <- str_replace_all(abstracts, "\\s+", " ")
 # alternatively, you can also use str_replace_all(abstracts, "[ORIGINAL]", "[REPLACEMENT]")
+sum(abstracts == "" | is.na(abstracts))
 ```
 
   - How many of these don't have an abstract? 
+  
+```{r}
+
+```
+
 
 _Answer here._
+
+12
 
 Now, the title
 
 ```{r process-titles, eval = FALSE}
-titles <- str_extract(pub_char_list, "[YOUR REGULAR EXPRESSION]")
-titles <- str_remove_all(titles, "[CLEAN ALL THE HTML TAGS]")
+titles <- str_extract(pub_char_list, "<ArticleTitle>.*?</ArticleTitle>")
+titles <- str_replace_all(titles, "<.*?>", "")
+sum(titles == "" | is.na(titles))
 ```
 
+```{r}
+
+```
+
+
 - How many of these don't have a title ? 
+
+0
 
 _Answer here._
 
@@ -221,7 +237,7 @@ Finally, put everything together into a single `data.frame` and use
 
 ```{r build-db, eval = FALSE}
 database <- data.frame(
-  "[DATA TO CONCATENATE]"
+  titles, abstracts
 )
 knitr::kable(database)
 

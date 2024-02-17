@@ -523,26 +523,30 @@ pub_char_list &lt;- sapply(pub_char_list, as.character)</code></pre>
 elements of <code>pub_char_list</code>. You can either use
 <code>sapply()</code> as we just did, or simply take advantage of
 vectorization of <code>stringr::str_extract</code></p>
-<pre class="r"><code>abstracts &lt;- str_extract(pub_char_list, &quot;[YOUR REGULAR EXPRESSION]&quot;)
-abstracts &lt;- str_remove_all(abstracts, &quot;[CLEAN ALL THE HTML TAGS]&quot;)
-abstracts &lt;- str_remove_all(abstracts, &quot;[CLEAN ALL EXTRA WHITE SPACE AND NEW LINES]&quot;)
-# alternatively, you can also use str_replace_all(abstracts, &quot;[ORIGINAL]&quot;, &quot;[REPLACEMENT]&quot;)</code></pre>
+<pre class="r"><code>abstracts &lt;- str_extract(pub_char_list, &quot;&lt;Abstract&gt;[\\s\\S]*?&lt;/Abstract&gt;&quot;)
+abstracts &lt;- str_replace_all(abstracts, &quot;&lt;.*?&gt;&quot;, &quot;&quot;)
+abstracts &lt;- str_replace_all(abstracts, &quot;\\s+&quot;, &quot; &quot;)
+# alternatively, you can also use str_replace_all(abstracts, &quot;[ORIGINAL]&quot;, &quot;[REPLACEMENT]&quot;)
+sum(abstracts == &quot;&quot; | is.na(abstracts))</code></pre>
 <ul>
 <li>How many of these don’t have an abstract?</li>
 </ul>
 <p><em>Answer here.</em></p>
+<p>12</p>
 <p>Now, the title</p>
-<pre class="r"><code>titles &lt;- str_extract(pub_char_list, &quot;[YOUR REGULAR EXPRESSION]&quot;)
-titles &lt;- str_remove_all(titles, &quot;[CLEAN ALL THE HTML TAGS]&quot;)</code></pre>
+<pre class="r"><code>titles &lt;- str_extract(pub_char_list, &quot;&lt;ArticleTitle&gt;.*?&lt;/ArticleTitle&gt;&quot;)
+titles &lt;- str_replace_all(titles, &quot;&lt;.*?&gt;&quot;, &quot;&quot;)
+sum(titles == &quot;&quot; | is.na(titles))</code></pre>
 <ul>
 <li>How many of these don’t have a title ?</li>
 </ul>
+<p>0</p>
 <p><em>Answer here.</em></p>
 <p>Finally, put everything together into a single
 <code>data.frame</code> and use <code>knitr::kable</code> to print the
 results</p>
 <pre class="r"><code>database &lt;- data.frame(
-  &quot;[DATA TO CONCATENATE]&quot;
+  titles, abstracts
 )
 knitr::kable(database)
 
